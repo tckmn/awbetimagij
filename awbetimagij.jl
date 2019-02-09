@@ -1,22 +1,31 @@
 #!/usr/bin/julia
 
+using Base.Iterators
+using Random
+using LinearAlgebra
+
 
 # TYPES
 
 mutable struct Tile
     symb::Char
+    passable::Bool
 end
 
 
 # GLOBAL VARIABLES
 
-prompt = ">> "
-textwidth = 80
-width = 40
-height = 12
+const prompt = ">> "
+const textwidth = 80
+const width = 10
+const height = 10
+
 pos = [height÷2, width÷2]
-gamemap = [Tile('.') for _=1:height, _=1:width]
-gamemap[5,18].symb = 'X'
+gamemap = [Tile('#', false) for _=1:height, _=1:width]
+
+# cardinal / all directions
+const cardir = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+const alldir = [x for x=product(-1:1, -1:1) if x ≠ (0, 0)]
 
 
 # HELPER FUNCTIONS
@@ -31,6 +40,42 @@ function wrap(str::String)
 end
 
 msg = println ∘ wrap
+msgln(x) = (msg(x); println())
+bc(p) = checkbounds(Bool, gamemap, p...)
+pass(p) = bc(p) && gamemap[p...].passable
+
+
+# GENERATE MAP
+
+function asdfasdf()
+    asciimap = map(x -> x.symb^2, gamemap)
+    asciimap[pos...] = "@."
+    println(join(mapslices(join, asciimap, dims=2), '\n'))
+end
+
+function mapgen1(p)
+    gamemap[p...] = Tile('.', true)
+    # repeatedly move in random directions that don't breach existing hallways
+    for d = shuffle(cardir)
+        if bc(p.+d) && all(x -> x⋅d == -1 || !pass(p.+d.+x), alldir)
+            mapgen1(p.+d)
+        end
+    end
+end
+
+function mapgen2()
+    # now try to open up dead ends
+    for p = product(axes(gamemap)...)
+        for d = cardir
+            if pass(p.+d.+d) && all(x -> x⋅d == -1 || !pass(p.+x), alldir)
+                gamemap[p.+d...] = Tile('.', true)
+            end
+        end
+    end
+end
+
+mapgen1([width÷2, height÷2])
+mapgen2()
 
 
 # USER COMMANDS
@@ -44,11 +89,10 @@ function help()
 end
 
 function commands()
-    msg("""
+    msgln("""
         You only have to type as many characters as is necessary to identify a
         command.  The characters in brackets are optional.
         """)
-    println()
 
     maxlen = maximum(length(name) for (name, _, _)=funcs)
 
@@ -70,51 +114,51 @@ function commands()
             print(name[bracketidx+1:end], "]")
         end
 
-        println(repeat(" ", maxlen - length(name) + 2), desc)
+        println(" "^(maxlen - length(name) + 2), desc)
     end
 end
 
 function showmap()
-    asciimap = map(x -> x.symb, gamemap)
-    asciimap[pos...] = '@'
+    asciimap = map(x -> x.symb^2, gamemap)
+    asciimap[pos...] = "@."
     println(join(mapslices(join, asciimap, dims=2), '\n'))
+end
+
+function look()
+    msg("You see here a '" * gamemap[pos...].symb * "'.")
 end
 
 funcs = [
     ("help",     help,     "Shows help on how to play the game."),
     ("commands", commands, "Displays this list of commands."),
     ("map",      showmap,  "Displays a map showing your current location."),
+    ("look",     look,     "Examines the map at your current location."),
 ]
 
 
 # MAIN CODE
 
-println("Welcome to awbetimagij!  Type 'help' for help.\n")
+msgln("Welcome to awbetimagij!  Type 'help' for help.\n")
 
 while true
     # read input
     print(prompt)
     input = readline(keep=true)
-    if isempty(input)
-        break
-    end
-    input = input[1:end-1]  # discard newline
+    if isempty(input); break; end
+    input = chomp(input)
 
     # check for movement first
     found = false
     for (x,i)=[("north", -1), ("south", 1), ("", 0)],
         (y,j)=[("west", -1), ("east", 1), ("", 0)]
         short = (isempty(x) ? "" : x[1]) * (isempty(y) ? "" : y[1])
-        if isempty(short)
-            continue
-        end
+        if isempty(short); continue; end
         if input == short || input == (x*y)
             found = true
+            input = "look"
             pos .+= [i, j]
-            if checkbounds(Bool, gamemap, pos...)
-                println("You see here a '", gamemap[pos...].symb, "'.")
-            else
-                println("You can't go that way.")
+            if !bc(pos) || !gamemap[pos...].passable
+                msg("You can't go that way.")
                 pos .-= [i, j]
             end
             break
@@ -122,18 +166,16 @@ while true
     end
 
     # now check for a command
-    if !found
-        for (name, func, _) ∈ funcs
-            if startswith(name, input)
-                found = true
-                func()
-                break
-            end
+    for (name, func, _) ∈ funcs
+        if startswith(name, input)
+            found = true
+            func()
+            break
         end
     end
 
     if !found
-        println("Unknown command.  Type 'help' for help.")
+        msg("Unknown command.  Type 'help' for help.")
     end
 
     println()
