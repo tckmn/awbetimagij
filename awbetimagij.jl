@@ -47,12 +47,6 @@ pass(p) = bc(p) && gamemap[p...].passable
 
 # GENERATE MAP
 
-function asdfasdf()
-    asciimap = map(x -> x.symb^2, gamemap)
-    asciimap[pos...] = "@."
-    println(join(mapslices(join, asciimap, dims=2), '\n'))
-end
-
 function mapgen1(p)
     gamemap[p...] = Tile('.', true)
     # repeatedly move in random directions that don't breach existing hallways
