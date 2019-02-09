@@ -7,10 +7,12 @@ using LinearAlgebra
 
 # TYPES
 
-mutable struct Tile
+struct Tile
     symb::Char
     passable::Bool
 end
+const wall = Tile('#', false)
+const floor = Tile('.', true)
 
 
 # GLOBAL VARIABLES
@@ -20,8 +22,8 @@ const textwidth = 80
 const width = 10
 const height = 10
 
-pos = [height÷2, width÷2]
-gamemap = [Tile('#', false) for _=1:height, _=1:width]
+const pos = [height÷2, width÷2]
+const gamemap = [wall for _=1:height, _=1:width]
 
 # cardinal / all directions
 const cardir = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -48,7 +50,7 @@ pass(p) = bc(p) && gamemap[p...].passable
 # GENERATE MAP
 
 function mapgen1(p)
-    gamemap[p...] = Tile('.', true)
+    gamemap[p...] = floor
     # repeatedly move in random directions that don't breach existing hallways
     for d = shuffle(cardir)
         if bc(p.+d) && all(x -> x⋅d == -1 || !pass(p.+d.+x), alldir)
@@ -62,7 +64,7 @@ function mapgen2()
     for p = product(axes(gamemap)...)
         for d = cardir
             if pass(p.+d.+d) && all(x -> x⋅d == -1 || !pass(p.+x), alldir)
-                gamemap[p.+d...] = Tile('.', true)
+                gamemap[p.+d...] = floor
             end
         end
     end
@@ -145,13 +147,12 @@ while true
     found = false
     for (x,i)=[("north", -1), ("south", 1), ("", 0)],
         (y,j)=[("west", -1), ("east", 1), ("", 0)]
-        short = (isempty(x) ? "" : x[1]) * (isempty(y) ? "" : y[1])
-        if isempty(short); continue; end
+        if i == j == 0; continue; end
+        short = first(x, 1) * first(y, 1)
         if input == short || input == (x*y)
-            found = true
-            input = "look"
+            input = "look"  # show new environment after moving
             pos .+= [i, j]
-            if !bc(pos) || !gamemap[pos...].passable
+            if !pass(pos)
                 msg("You can't go that way.")
                 pos .-= [i, j]
             end
