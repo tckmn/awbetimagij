@@ -7,7 +7,7 @@ using LinearAlgebra
 
 # TYPES
 
-mutable struct Tile
+struct Tile
     symb::Char
     passable::Bool
 end
@@ -21,7 +21,7 @@ const width = 10
 const height = 10
 
 pos = [height÷2, width÷2]
-gamemap = [Tile('#', false) for _=1:height, _=1:width]
+gamemap = fill(Tile('#', false), height, width)
 
 # cardinal / all directions
 const cardir = [(1, 0), (-1, 0), (0, 1), (0, -1)]
