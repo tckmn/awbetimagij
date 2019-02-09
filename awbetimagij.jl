@@ -23,7 +23,7 @@ const width = 10
 const height = 10
 
 const pos = [height÷2, width÷2]
-const gamemap = [wall for _=1:height, _=1:width]
+const gamemap = fill(wall, height, width)
 
 # cardinal / all directions
 const cardir = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -34,11 +34,16 @@ const alldir = [x for x=product(-1:1, -1:1) if x ≠ (0, 0)]
 
 function wrap(str::String)
     words = split(str; keepempty=true)
-    foldl(((s, len), word) ->
-        len + 1 + (j = length(word)) > textwidth ?
-            (s * "\n" * word, j) :
-            len == 0 ? (s * word, j) : (s * " " * word, len + 1 + j),
-        words[2:end]; init=(words[1], length(words[1])))[1]
+    first(foldl(words[2:end]; init=(words[1], length(words[1]))) do (s, len), word
+        j = length(word)
+        if len + j + 1 > textwidth
+            (s * "\n" * word, j)
+        elseif len == 0
+            (s * word, j)
+        else
+            (s * " " * word, len + j + 1)
+        end
+    end)
 end
 
 msg = println ∘ wrap
@@ -140,14 +145,14 @@ while true
     # read input
     print(prompt)
     input = readline(keep=true)
-    if isempty(input); break; end
+    isempty(input) && break
     input = chomp(input)
 
     # check for movement first
     found = false
     for (x,i)=[("north", -1), ("south", 1), ("", 0)],
         (y,j)=[("west", -1), ("east", 1), ("", 0)]
-        if i == j == 0; continue; end
+        i == j == 0 && continue
         short = first(x, 1) * first(y, 1)
         if input == short || input == (x*y)
             input = "look"  # show new environment after moving
