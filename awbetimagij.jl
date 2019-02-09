@@ -143,7 +143,7 @@ while true
     # read input
     print(prompt)
     input = readline(keep=true)
-    if isempty(input); break; end
+    isempty(input) && break
     input = chomp(input)
 
     # check for movement first
@@ -151,7 +151,7 @@ while true
     for (x,i)=[("north", -1), ("south", 1), ("", 0)],
         (y,j)=[("west", -1), ("east", 1), ("", 0)]
         short = (isempty(x) ? "" : x[1]) * (isempty(y) ? "" : y[1])
-        if isempty(short); continue; end
+        isempty(short) && continue
         if input == short || input == (x*y)
             found = true
             input = "look"
