@@ -32,11 +32,16 @@ const alldir = [x for x=product(-1:1, -1:1) if x ≠ (0, 0)]
 
 function wrap(str::String)
     words = split(str; keepempty=true)
-    foldl(((s, len), word) ->
-        len + 1 + (j = length(word)) > textwidth ?
-            (s * "\n" * word, j) :
-            len == 0 ? (s * word, j) : (s * " " * word, len + 1 + j),
-        words[2:end]; init=(words[1], length(words[1])))[1]
+    first(foldl(words[2:end]; init=(words[1], length(words[1]))) do (s, len), word
+        j = length(word)
+        if len + j + 1 > textwidth
+            (s * "\n" * word, j)
+        elseif len == 0
+            (s * word, j)
+        else
+            (s * " " * word, len + j + 1)
+        end
+    end)
 end
 
 msg = println ∘ wrap
