@@ -18,6 +18,14 @@ end
 global const wall = Tile('#', false)
 global const floor = Tile(' ', true)
 
+struct Game
+    lvl::Array{Tile, 2}
+    pos::Array{Int, 1}
+    mapwin::Window
+    statuswin::Window
+    msgwin::Window
+end
+
 
 # GLOBAL VARIABLES
 
@@ -46,7 +54,7 @@ function wrap(str::String)
     end)
 end
 
-msg(msgwin, x) = (clear(msgwin); add(msgwin, wrap(x)); refresh(msgwin))
+msg(g, x) = (clear(g.msgwin); add(g.msgwin, wrap(x)); refresh(g.msgwin))
 bc(lvl, p) = checkbounds(Bool, lvl, p...)
 pass(lvl, p) = bc(lvl, p) && lvl[p...].passable
 
@@ -79,26 +87,26 @@ function lvlgen(height, width, pos)
     lvl
 end
 
-function mapdraw(mapwin, lvl, pos)
-    clear(mapwin)
-    box(mapwin; bl=ACS_LTEE, br=ACS_BTEE, tr=ACS_TTEE)
-    asciimap = map(x -> x.symb^2, lvl)
-    asciimap[pos...] = "@ "
+function mapdraw(g)
+    clear(g.mapwin)
+    box(g.mapwin; bl=ACS_LTEE, br=ACS_BTEE, tr=ACS_TTEE)
+    asciimap = map(x -> x.symb^2, g.lvl)
+    asciimap[g.pos...] = "@ "
     for (idx, line) in enumerate(mapslices(join, asciimap, dims=2))
-        add(mapwin, line, idx, 1)
+        add(g.mapwin, line, idx, 1)
     end
-    move(mapwin, pos[1], pos[2]*2-1)
-    refresh(mapwin)
+    move(g.mapwin, g.pos[1], g.pos[2]*2-1)
+    refresh(g.mapwin)
 end
 
 
 # STATUS INFO
 
-function statusdraw(statuswin)
-    clear(statuswin)
-    box(statuswin; tl=ACS_TTEE, bl=ACS_BTEE, br=ACS_RTEE)
-    add(statuswin, "you are alive", 1, 1)
-    refresh(statuswin)
+function statusdraw(g)
+    clear(g.statuswin)
+    box(g.statuswin; tl=ACS_TTEE, bl=ACS_BTEE, br=ACS_RTEE)
+    add(g.statuswin, "you are alive", 1, 1)
+    refresh(g.statuswin)
 end
 
 
@@ -107,11 +115,9 @@ end
 export go
 function go()
 
-    pos = [height÷2, width÷2]
-    lvl = lvlgen(height, width, pos)
-
     init()
     refresh()
+
     mapwin = newwin(height+2, width*2+2, 0, 0)
     statuswin = newwin(height+2, textwidth-width*2 + 1, 0, width*2+1)
 
@@ -120,16 +126,20 @@ function go()
     box(msgborder)
     refresh(msgborder)
 
-    msg(msgwin, "Welcome to awben!  Type '?' for help.")
-    statusdraw(statuswin)
-    mapdraw(mapwin, lvl, pos)
+    pos = [height÷2, width÷2]
+    lvl = lvlgen(height, width, pos)
+    g = Game(lvl, pos, mapwin, statuswin, msgwin)
+
+    msg(g, "Welcome to awben!  Type '?' for help.")
+    statusdraw(g)
+    mapdraw(g)
 
     while true
         ch = getch()
         if ch == 'q'
             break
         elseif ch == '?'
-            msg(msgwin, "sorry there's actually no help yet")
+            msg(g, "sorry there's actually no help yet")
         end
 
         # put cursor back onto player
