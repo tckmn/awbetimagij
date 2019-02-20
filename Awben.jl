@@ -18,7 +18,7 @@ end
 global const wall = Tile('#', false)
 global const floor = Tile(' ', true)
 
-struct Game
+mutable struct Game
     lvl::Array{Tile, 2}
     pos::Array{Int, 1}
     mapwin::Window
@@ -99,6 +99,10 @@ function mapdraw(g)
     refresh(g.mapwin)
 end
 
+function mapredraw(g, p)
+    add(g.mapwin, g.pos == p ? "@ " : g.lvl[p...].symb^2, p[1], p[2]*2-1)
+end
+
 
 # STATUS INFO
 
@@ -111,6 +115,17 @@ end
 
 
 # MAIN CODE
+
+function trymove(g, d)
+    if !pass(g.lvl, g.pos .+ d)
+        msg(g, "You can't go that way.")
+    else
+        g.pos .+= d
+        mapredraw(g, g.pos)
+        mapredraw(g, g.pos .- d)
+        refresh(g.mapwin)
+    end
+end
 
 export go
 function go()
@@ -136,14 +151,18 @@ function go()
 
     while true
         ch = getch()
-        if ch == 'q'
-            break
+        msg(g, "")
+        if ch == 'q'; break
+        elseif ch == 'h'; trymove(g, [ 0, -1])
+        elseif ch == 'j'; trymove(g, [ 1,  0])
+        elseif ch == 'k'; trymove(g, [-1,  0])
+        elseif ch == 'l'; trymove(g, [ 0,  1])
         elseif ch == '?'
             msg(g, "sorry there's actually no help yet")
         end
 
         # put cursor back onto player
-        move(mapwin, pos[1], pos[2]*2-1)
+        move(mapwin, g.pos[1], g.pos[2]*2-1)
         refresh(mapwin)
     end
 
