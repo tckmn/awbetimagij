@@ -5,8 +5,7 @@ using Base.Iterators
 using Random
 using LinearAlgebra
 
-include("../NCurses.jl/ncurses.jl")
-using .NCurses
+using NCurses
 
 
 # TYPES
@@ -18,9 +17,19 @@ end
 global const wall = Tile('#', false)
 global const floor = Tile(' ', true)
 
+Level = Array{Tile, 2}
+Coord = Tuple{Int, Int}
+
+mutable struct Monster
+    symb::Char
+    pos::Coord
+    hp::Int
+end
+
 mutable struct Game
-    lvl::Array{Tile, 2}
-    pos::Array{Int, 1}
+    lvl::Level
+    you::Monster
+    mons::Array{Monster, 1}
     mapwin::Window
     statuswin::Window
     msgwin::Window
@@ -54,14 +63,14 @@ function wrap(str::String)
     end)
 end
 
-msg(g, x) = (clear(g.msgwin); add(g.msgwin, wrap(x)); refresh(g.msgwin))
-bc(lvl, p) = checkbounds(Bool, lvl, p...)
-pass(lvl, p) = bc(lvl, p) && lvl[p...].passable
+msg(g::Game, x::String) = (clear(g.msgwin); add(g.msgwin, wrap(x)); refresh(g.msgwin))
+bc(lvl::Level, p::Coord) = checkbounds(Bool, lvl, p...)
+pass(lvl::Level, p::Coord) = bc(lvl, p) && lvl[p...].passable
 
 
 # MAP
 
-function burrow(lvl, p)
+function burrow(lvl::Level, p::Coord)
     lvl[p...] = floor
     # repeatedly move in random directions that don't breach existing hallways
     for d = shuffle(cardir)
@@ -71,7 +80,7 @@ function burrow(lvl, p)
     end
 end
 
-function lvlgen(height, width, pos)
+function lvlgen(height::Int, width::Int, pos::Coord)
     lvl = fill(wall, height, width)
     burrow(lvl, pos)
 
@@ -87,43 +96,67 @@ function lvlgen(height, width, pos)
     lvl
 end
 
-function mapdraw(g)
+function mongen(lvl::Level)
+    while true
+        p = Tuple(rand(CartesianIndices(lvl)))
+        if pass(lvl, p)
+            return [Monster('X', p, 10)]
+        end
+    end
+end
+
+function mapdrawmon(g::Game, m::Monster)
+    mapredraw(g, m.pos)
+    add(g.mapwin, m.symb * g.lvl[m.pos...].symb, m.pos[1], m.pos[2]*2-1)
+end
+
+function mapdraw(g::Game)
     clear(g.mapwin)
     box(g.mapwin; bl=ACS_LTEE, br=ACS_BTEE, tr=ACS_TTEE)
     asciimap = map(x -> x.symb^2, g.lvl)
-    asciimap[g.pos...] = "@ "
     for (idx, line) in enumerate(mapslices(join, asciimap, dims=2))
         add(g.mapwin, line, idx, 1)
     end
-    move(g.mapwin, g.pos[1], g.pos[2]*2-1)
+    mapdrawmon.((g,), g.mons)
+    mapdrawmon(g, g.you)
+    move(g.mapwin, g.you.pos[1], g.you.pos[2]*2-1)
     refresh(g.mapwin)
 end
 
-function mapredraw(g, p)
-    add(g.mapwin, g.pos == p ? "@ " : g.lvl[p...].symb^2, p[1], p[2]*2-1)
+function mapredraw(g::Game, p::Coord)
+    add(g.mapwin, g.lvl[p...].symb^2, p[1], p[2]*2-1)
 end
 
 
 # STATUS INFO
 
-function statusdraw(g)
+function statusdraw(g::Game)
     clear(g.statuswin)
     box(g.statuswin; tl=ACS_TTEE, bl=ACS_BTEE, br=ACS_RTEE)
-    add(g.statuswin, "you are alive", 1, 1)
+    add(g.statuswin, "you have $(g.you.hp) hp", 1, 1)
     refresh(g.statuswin)
 end
 
 
 # MAIN CODE
 
-function trymove(g, d)
-    if !pass(g.lvl, g.pos .+ d)
-        msg(g, "You can't go that way.")
-    else
-        g.pos .+= d
-        mapredraw(g, g.pos)
-        mapredraw(g, g.pos .- d)
+function monat(g::Game, p::Coord)::Union{Monster, Nothing}
+    for mon in g.mons
+        if mon.pos == p
+            return mon
+        end
+    end
+end
+
+function trymove(g::Game, d::Coord)
+    newpos = g.you.pos .+ d
+    if pass(g.lvl, newpos) && isnothing(monat(g, newpos))
+        g.you.pos = newpos
+        mapdrawmon(g, g.you)
+        mapredraw(g, g.you.pos .- d)
         refresh(g.mapwin)
+    else
+        msg(g, "You can't go that way.")
     end
 end
 
@@ -141,9 +174,10 @@ function go()
     box(msgborder)
     refresh(msgborder)
 
-    pos = [height÷2, width÷2]
+    pos = (height÷2, width÷2)
     lvl = lvlgen(height, width, pos)
-    g = Game(lvl, pos, mapwin, statuswin, msgwin)
+    mons = mongen(lvl)
+    g = Game(lvl, Monster('@', pos, 100), mons, mapwin, statuswin, msgwin)
 
     msg(g, "Welcome to awben!  Type '?' for help.")
     statusdraw(g)
@@ -153,16 +187,16 @@ function go()
         ch = getch()
         msg(g, "")
         if ch == 'q'; break
-        elseif ch == 'h'; trymove(g, [ 0, -1])
-        elseif ch == 'j'; trymove(g, [ 1,  0])
-        elseif ch == 'k'; trymove(g, [-1,  0])
-        elseif ch == 'l'; trymove(g, [ 0,  1])
+        elseif ch == 'h'; trymove(g, ( 0, -1))
+        elseif ch == 'j'; trymove(g, ( 1,  0))
+        elseif ch == 'k'; trymove(g, (-1,  0))
+        elseif ch == 'l'; trymove(g, ( 0,  1))
         elseif ch == '?'
-            msg(g, "sorry there's actually no help yet")
+            msg(g, "But nobody came.")
         end
 
         # put cursor back onto player
-        move(mapwin, g.pos[1], g.pos[2]*2-1)
+        move(mapwin, g.you.pos[1], g.you.pos[2]*2-1)
         refresh(mapwin)
     end
 
